@@ -22,6 +22,12 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 logger = logging.getLogger("escape_silk_board")
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    logger.addHandler(_handler)
+    logger.propagate = False
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -1304,13 +1310,25 @@ async def call_llm(state: GameState, action: str) -> LLMProposal:
         }
         if os.getenv("LLM_JSON_MODE", "1").strip() != "0":
             payload["response_format"] = {"type": "json_object"}
+        # DeepSeek V4.x enables thinking by default; narration doesn't need it,
+        # and it would spend the token budget on reasoning instead of JSON.
+        if "deepseek" in url and os.getenv("LLM_THINKING", "0").strip() not in {"1", "on", "true"}:
+            payload["thinking"] = {"type": "disabled"}
         return payload
 
     async def request_proposal(budget: int) -> LLMProposal:
         async with httpx.AsyncClient(timeout=18.0) as client:
             resp = await client.post(url, headers=headers, json=build_payload(budget))
             resp.raise_for_status()
-            raw_content = resp.json()["choices"][0]["message"]["content"].strip()
+            data = resp.json()
+            usage = data.get("usage") or {}
+            logger.info(
+                "LLM usage: prompt=%s completion=%s total=%s",
+                usage.get("prompt_tokens"),
+                usage.get("completion_tokens"),
+                usage.get("total_tokens"),
+            )
+            raw_content = data["choices"][0]["message"]["content"].strip()
             if raw_content.startswith("```"):
                 raw_content = raw_content.strip("`")
                 if raw_content.lower().startswith("json"):

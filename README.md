@@ -17,6 +17,10 @@ to Kempegowda International Airport before check-in closes at 8:55 PM.
 The FastAPI backend owns the world state and every guardrail. The frontend is a
 single static HTML file, so there is no build step.
 
+**Model:** DeepSeek `deepseek-flash` (V4.1 Flash), thinking disabled for
+narration. A measured 12-turn run used **32,473 input + 3,387 output tokens** —
+roughly **₹1 per playthrough** at current pricing.
+
 ## Code owns the facts, the LLM owns the story
 
 The narrator proposes time, cash, battery, progress, and inventory changes as
@@ -34,6 +38,7 @@ the browser. Deterministic obstacles and weather mean a run is reproducible.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env        # add your LLM key
 python main.py
 ```
 
@@ -51,9 +56,12 @@ The repo already has a `Dockerfile` and the Space frontmatter in this README.
 
 1. Create a **Docker** Space at huggingface.co/new-space.
 2. Add these under **Settings → Variables and secrets**:
-   `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (`deepseek-chat`),
+   `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (`deepseek-flash`),
    `LLM_MAX_TOKENS=2000`, `LLM_JSON_MODE=1`, `STATE_SECRET` (any long random string).
-3. Push this folder to the Space repo. The container serves on port 7860.
+   Keep `LLM_API_KEY` and `STATE_SECRET` as **Secrets**; the rest can be Variables.
+3. Push this folder to the Space repo (`git push --force space main` on a new
+   Space). The container serves on port 7860. If the Space UI still says
+   "static", set **Settings → Change Space SDK → Docker**.
 4. Health check: `https://<user>-<space>.hf.space/api/health` → `"llm_mode":"llm"`.
 
 Spaces only sleep after 48h of inactivity, so judges usually get a warm instance.
@@ -132,18 +140,22 @@ export GEMINI_API_KEY=...
 export OPENAI_API_KEY=...
 ```
 
-Or point at any OpenAI-compatible server. This build uses DeepSeek:
+Or point at any OpenAI-compatible server. This build uses DeepSeek V4.1 Flash:
 
 ```bash
 export LLM_BASE_URL=https://api.deepseek.com/v1
 export LLM_API_KEY=sk-...
-export LLM_MODEL=deepseek-chat
+export LLM_MODEL=deepseek-flash
 ```
 
-A 12-turn run sends roughly 25k input and 5k output tokens, so on
-`deepseek-chat` a playthrough costs a few rupees at most at current pricing.
-`gemini-2.5-flash` is retired for new keys; Gemini 3.x needs a higher
-`LLM_MAX_TOKENS` because it spends part of the budget on internal reasoning.
+A measured 12-turn run used **32,473 input and 3,387 output tokens** (about
+2.7k and 280 per turn). At current `deepseek-flash` rates that is roughly
+**$0.007–$0.014 — about ₹1 — per playthrough**. Thinking mode is disabled for
+narration so the budget goes to the JSON, not internal reasoning; set
+`LLM_THINKING=1` to enable it.
+
+`gemini-2.5-flash` is retired for new keys; Gemini 3.x also needs a higher
+`LLM_MAX_TOKENS` because it spends part of the budget on reasoning.
 
 Useful switches:
 
@@ -154,6 +166,7 @@ Useful switches:
 | `LLM_MODEL` | provider default | Model name for the chosen provider. |
 | `LLM_MAX_TOKENS` | `2000` | Narrator response cap (Gemini 3.x needs the headroom). |
 | `LLM_JSON_MODE` | `1` | Set to `0` if the provider rejects `response_format`. |
+| `LLM_THINKING` | `0` | DeepSeek only: set to `1` to enable thinking mode. |
 | `DISABLE_EVENTS` | unset | Set to `1` to turn the event deck off. |
 | `TURN_RATE_LIMIT` | `30` | `/api/turn` requests per minute per IP. `0` disables. |
 | `START_RATE_LIMIT` | `15` | `/api/start` requests per minute per IP. `0` disables. |
@@ -164,5 +177,7 @@ Useful switches:
 - `main.py` — FastAPI app, game engine, HMAC state signing, optional LLM caller.
 - `static/index.html` — the complete UI (Tailwind CDN, canvas rain, WebAudio ambience, split-flap SFX, no build step).
 - `Dockerfile` / `.dockerignore` — the deploy image (serves on port 7860 for Hugging Face Spaces).
+- `.env.example` — copy to `.env` and add your key.
+- `DESIGN.md` — the three design answers (moment, cut, miss).
 - `test_guardrails.py` — deterministic anti-cheat/guardrail tests.
 - `test_game.py` — engine, consent/fare, event deck, memory, and API round-trip tests.
