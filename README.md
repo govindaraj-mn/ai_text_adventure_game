@@ -10,12 +10,23 @@ pinned: false
 
 # Escape Silk Board · FL 2047
 
-A single-file AI text adventure set on Bengaluru's Outer Ring Road. You have ₹500
+A small AI text adventure set on Bengaluru's Outer Ring Road. You have ₹500
 cash, 4% phone battery, one cold samosa, and 115 minutes to get from Silk Board
 to Kempegowda International Airport before check-in closes at 8:55 PM.
 
 The FastAPI backend owns the world state and every guardrail. The frontend is a
 single static HTML file, so there is no build step.
+
+## Code owns the facts, the LLM owns the story
+
+The narrator proposes time, cash, battery, progress, and inventory changes as
+JSON. `reconcile_turn` in `main.py` checks consent, overdraft, fare bands, the
+12-move cap, samosa/friend one-time use, phone state, and the checkpoint delta
+before any of it touches the game. A proposal can be clamped, blocked, or
+overruled, and the prose is corrected so the story matches the ledger.
+
+State is HMAC-signed, so a reloaded client can recover a run without trusting
+the browser. Deterministic obstacles and weather mean a run is reproducible.
 
 ## Run
 
@@ -70,8 +81,10 @@ Set either to `0` to disable. The limiter reads `X-Forwarded-For` behind a proxy
 .venv/bin/python -m pytest -q
 ```
 
-The tests cover the offline intent engine, cash/battery/time guardrails, the
-12-move cap, HMAC tamper detection, API recovery, and end-to-end start/turn.
+The 73 tests cover the offline intent engine, cash/battery/time guardrails,
+consent and counter-offer rules, fare bands, event deck, NPC memory, the 12-move
+cap, HMAC tamper detection, API recovery, rate limiting, and end-to-end
+start/turn.
 
 ## Game rules
 
@@ -119,13 +132,18 @@ export GEMINI_API_KEY=...
 export OPENAI_API_KEY=...
 ```
 
-Or point at any OpenAI-compatible local server:
+Or point at any OpenAI-compatible server. This build uses DeepSeek:
 
 ```bash
-export LLM_BASE_URL=http://127.0.0.1:11434/v1
-export LLM_MODEL=your-model
-export LLM_API_KEY=optional
+export LLM_BASE_URL=https://api.deepseek.com/v1
+export LLM_API_KEY=sk-...
+export LLM_MODEL=deepseek-chat
 ```
+
+A 12-turn run sends roughly 25k input and 5k output tokens, so on
+`deepseek-chat` a playthrough costs a few rupees at most at current pricing.
+`gemini-2.5-flash` is retired for new keys; Gemini 3.x needs a higher
+`LLM_MAX_TOKENS` because it spends part of the budget on internal reasoning.
 
 Useful switches:
 
@@ -134,13 +152,17 @@ Useful switches:
 | `STATE_SECRET` | random per process | Set a stable secret if HMAC recovery must survive restarts. |
 | `DISABLE_LLM` | unset | Set to `1` to force the offline narrator. |
 | `LLM_MODEL` | provider default | Model name for the chosen provider. |
-| `LLM_MAX_TOKENS` | `500` | Narrator response cap. |
+| `LLM_MAX_TOKENS` | `2000` | Narrator response cap (Gemini 3.x needs the headroom). |
 | `LLM_JSON_MODE` | `1` | Set to `0` if the provider rejects `response_format`. |
+| `DISABLE_EVENTS` | unset | Set to `1` to turn the event deck off. |
+| `TURN_RATE_LIMIT` | `30` | `/api/turn` requests per minute per IP. `0` disables. |
+| `START_RATE_LIMIT` | `15` | `/api/start` requests per minute per IP. `0` disables. |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address for `python main.py`. |
 
 ## Files
 
 - `main.py` — FastAPI app, game engine, HMAC state signing, optional LLM caller.
-- `static/index.html` — the complete UI (Tailwind CDN, split-flap SFX, no build).
+- `static/index.html` — the complete UI (Tailwind CDN, canvas rain, WebAudio ambience, split-flap SFX, no build step).
+- `Dockerfile` / `.dockerignore` — the deploy image (serves on port 7860 for Hugging Face Spaces).
 - `test_guardrails.py` — deterministic anti-cheat/guardrail tests.
-- `test_game.py` — intent-engine and API round-trip tests.
+- `test_game.py` — engine, consent/fare, event deck, memory, and API round-trip tests.
