@@ -2,7 +2,7 @@
 title: Escape Silk Board
 emoji: 🛺
 colorFrom: indigo
-colorTo: amber
+colorTo: yellow
 sdk: docker
 app_port: 7860
 pinned: false
