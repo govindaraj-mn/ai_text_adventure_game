@@ -17,6 +17,8 @@ to Kempegowda International Airport before check-in closes at 8:55 PM.
 The FastAPI backend owns the world state and every guardrail. The frontend is a
 single static HTML file, so there is no build step.
 
+**Live:** <https://ai-text-adventure-game.onrender.com>
+
 **Model:** DeepSeek `deepseek-flash` (V4.1 Flash), thinking disabled for
 narration. A measured 12-turn run used **32,473 input + 3,387 output tokens** —
 roughly **₹1 per playthrough** at current pricing.
@@ -50,7 +52,21 @@ Open <http://127.0.0.1:8000>. You can also run:
 
 ## Deploy (free)
 
-### Hugging Face Spaces — recommended
+The live build runs on **Render** at
+<https://ai-text-adventure-game.onrender.com>. The repo also ships a
+`render.yaml` blueprint, so a new Render Web Service can be created from this
+repo in one step (Python runtime, free plan, `/api/health` health check).
+
+### Render
+
+- Build: `pip install -r requirements.txt`
+- Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Env: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL=deepseek-flash`,
+  `LLM_MAX_TOKENS=2000`, `LLM_JSON_MODE=1`, `STATE_SECRET`.
+- The free tier sleeps after 15 minutes; ping `/api/health` every 10 minutes
+  with a free uptime monitor if judges may arrive cold.
+
+### Hugging Face Spaces — alternative
 
 The repo already has a `Dockerfile` and the Space frontmatter in this README.
 
@@ -65,14 +81,6 @@ The repo already has a `Dockerfile` and the Space frontmatter in this README.
 4. Health check: `https://<user>-<space>.hf.space/api/health` → `"llm_mode":"llm"`.
 
 Spaces only sleep after 48h of inactivity, so judges usually get a warm instance.
-
-### Render — fastest
-
-- Build: `pip install -r requirements.txt`
-- Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Same environment variables as above.
-- The free tier sleeps after 15 minutes; ping it every 10 minutes with a free
-  uptime monitor if judges may arrive cold.
 
 ### Public-endpoint guards
 
